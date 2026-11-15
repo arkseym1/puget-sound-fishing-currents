@@ -1,0 +1,47 @@
+name: Puget Sound fishing currents
+
+on:
+  schedule:
+    # ~5 h after each SSCOFS run (03/09/15/21 UTC), once NOAA has posted it
+    - cron: "17 2 * * *"
+    - cron: "17 8 * * *"
+    - cron: "17 14 * * *"
+    - cron: "17 20 * * *"
+  workflow_dispatch:        # "Run workflow" button for an on-demand refresh
+  push:                     # rebuild whenever the code changes
+    branches: [main]
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 150   # all 10 model layers is ~10x the surface-only data
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+      - run: pip install numpy matplotlib netCDF4 tzdata
+      - name: Build data and viewer
+        run: python build_data.py
+      - uses: actions/upload-pages-artifact@v5
+        with:
+          path: site
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v5
